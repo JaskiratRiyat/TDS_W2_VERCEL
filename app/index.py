@@ -1,38 +1,32 @@
-import json
-from http.server import BaseHTTPRequestHandler
-import urllib.parse
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+import pandas as pd
 
-# Load student data from the JSON file
-def load_data():
-    with open('q-vercel-python.json', 'r') as file:
-        data = json.load(file)
-    return data
+app = FastAPI()
 
-# Handler class to process incoming requests
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        # Parse the query parameters
-        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+# Enable CORS for all origins (Allows any frontend to access this API)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
-        # Get 'name' parameters from the query string
-        names = query.get('name', [])
+# Load CSV file
+df = pd.read_csv("q-fastapi.csv")
 
-        # Load data from the JSON file
-        data = load_data()
+@app.get("/api")
+def get_students(class_: list[str] = Query(None, alias="class")):
+    """
+    Fetch student data from the CSV. If 'class' query parameters are provided,
+    filter students by those classes.
+    """
+    if class_:
+        filtered_df = df[df["class"].isin(class_)]
+    else:
+        filtered_df = df
 
-        # Prepare the result dictionary
-        result = {"marks": []}
-        for name in names:
-            # Find the marks for each name
-            for entry in data:
-                if entry["name"] == name:
-                    result["marks"].append(entry["marks"])
-
-        # Send the response header
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')  # Enable CORS for any origin
-        self.end_headers()
-
-        # Send the JSON response
-        self.wfile.write(json.dumps(result).encode('utf-8'))
+    # Convert to dictionary list
+    students = filtered_df.to_dict(orient="records")
+    return {"students": students}
